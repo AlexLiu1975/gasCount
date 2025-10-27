@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公務車油耗統計</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    
+    <style>
+        /* 您的表格樣式 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f7f9;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: center;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #f1f8ff;
+        }
+        .total-row {
+            background-color: #e8f4fc;
+            font-weight: bold;
+        }
+        .unit-label {
+            font-style: italic;
+            color: #666;
+            text-align: right;
+            margin-top: 5px;
+        }
+        .carbon-emission {
+            background-color: #e8f5e9;
+        }
+        .year-separator {
+            border-top: 3px solid #2980b9;
+        }
+        .year-label {
+            vertical-align: top;
+        }
+        /* 圖表佈局 - 調整為兩行兩欄的佈局 */
+        .chart-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            margin: 40px auto; 
+            max-width: 1400px;
+        }
+        .chart-container {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: white;
+        }
+        /* 讓第三個圖表獨佔一行 */
+        .full-width-chart {
+            grid-column: 1 / -1; 
+        }
+    </style>
+</head>
+<body>
+    <h1>公務車油耗統計與碳排放表</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2">年度</th>
+                <th rowspan="2">燃料類型</th>
+                <th rowspan="2">碳排放係數<br>(kg CO₂ / 單位)</th>
+                <th rowspan="2">碳排放量 (kg CO₂)</th>
+                <th colspan="12">月份 (公升)</th>
+                <th rowspan="2">合計 (L)</th>
+            </tr>
+            <tr>
+                <th>01月</th>
+                <th>02月</th>
+                <th>03月</th>
+                <th>04月</th>
+                <th>05月</th>
+                <th>06月</th>
+                <th>07月</th>
+                <th>08月</th>
+                <th>09月</th>
+                <th>10月</th>
+                <th>11月</th>
+                <th>12月</th>
+            </tr>
+        </thead>
+        <tbody id="fuel-data-body">
+            </tbody>
+    </table>
+
+    <div class="unit-label">每月用油單位: 公升 (L) / 碳排放單位: 公斤二氧化碳 (kg CO₂)</div>
+
+    <div class="chart-grid">
+        <div class="chart-container">
+            <h2>圖表一: 年度總油耗比較 (L)</h2>
+            <canvas id="annualConsumptionChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h2>圖表二: 總碳排放量年度趨勢 (kg CO₂)</h2>
+            <canvas id="annualCarbonChart"></canvas>
+        </div>
+        
+        <div class="chart-container full-width-chart">
+            <h2>圖表三: 歷年每月總油耗趨勢 (L)</h2>
+            <canvas id="monthlyConsumptionTrendChart"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        // 您的 JSON 格式數據
+        const fuelData = [
+            // ==================== 113 年度資料 ====================
+            {
+                year: '113',
+                fuelType: '汽油',
+                coefficient: 2.306,
+                monthlyConsumption: {
+                    '01': 100, '02': 100, '03': 200, '04': 100, '05': 185, '06': 150, 
+                    '07': 135, '08': 250, '09': 185, '10': 250, '11': 185, '12': 250
+                }
+            },
+            {
+                year: '113',
+                fuelType: '柴油',
+                coefficient: 2.588,
+                monthlyConsumption: {
+                    '01': 0, '02': 0, '03': 0, '04': 35.7, '05': 0, '06': 0, 
+                    '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0
+                }
+            },
+            // ==================== 114 年度假設資料 (新增) ====================
+            {
+                year: '114',
+                fuelType: '汽油',
+                coefficient: 2.306,
+                monthlyConsumption: {
+                    '01': 150, '02': 150, '03': 150, '04': 200, '05': 200, '06': 200, 
+                    '07': 100, '08': 150, '09': 150, '10': 0, '11': 0, '12': 0
+                }
+            },
+            {
+                year: '114',
+                fuelType: '柴油',
+                coefficient: 2.588,
+                monthlyConsumption: {
+                    '01': 0, '02': 0, '03': 35.07, '04': 0, '05': 41, '06': 33.2, 
+                    '07': 35.1, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0
+                }
+            }
+        ];
+
+        // 函數：處理數據、渲染表格並計算年度總計與月度總計
+        function processAndRenderTable(dataArray) {
+            const tbody = document.getElementById('fuel-data-body');
+            tbody.innerHTML = ''; 
+
+            let currentYear = null;
+            let yearCounts = {};
+            // 結構包含 gasCarbon 和 dieselCarbon 欄位
+            let annualTotals = {}; 
+            let monthlyTotals = {}; 
+            const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+
+
+            // 第一次遍歷：計算 rowSpan、年度總計和月度總計
+            dataArray.forEach(item => {
+                yearCounts[item.year] = (yearCounts[item.year] || 0) + 1;
+                
+                const totalConsumption = Object.values(item.monthlyConsumption).reduce((sum, current) => sum + current, 0);
+                const carbonEmission = totalConsumption * item.coefficient; 
+                
+                if (!annualTotals[item.year]) {
+                    // 初始化結構：包含油耗(L)和碳排放(kg CO₂)
+                    annualTotals[item.year] = { 
+                        gas: 0, 
+                        diesel: 0, 
+                        gasCarbon: 0, 
+                        dieselCarbon: 0 
+                    };
+                }
+                if (!monthlyTotals[item.year]) {
+                    monthlyTotals[item.year] = months.reduce((acc, month) => ({ ...acc, [month]: 0 }), {});
+                }
+                
+                if (item.fuelType === '汽油') {
+                    annualTotals[item.year].gas = totalConsumption;
+                    annualTotals[item.year].gasCarbon = carbonEmission; // 儲存汽油碳排放
+                } else if (item.fuelType === '柴油') {
+                    annualTotals[item.year].diesel = totalConsumption;
+                    annualTotals[item.year].dieselCarbon = carbonEmission; // 儲存柴油碳排放
+                }
+                
+                // 累加月度總油耗
+                months.forEach(month => {
+                    monthlyTotals[item.year][month] += (item.monthlyConsumption[month] || 0);
+                });
+            });
+
+            // 第二次遍歷：渲染表格
+            dataArray.forEach((data, index) => {
+                const monthlyValues = Object.values(data.monthlyConsumption);
+                const totalConsumption = monthlyValues.reduce((sum, current) => sum + current, 0);
+                const carbonEmission = totalConsumption * data.coefficient;
+                
+                // 數據格式化 (表格顯示用)
+                const emissionFormatted = carbonEmission.toFixed(2);
+                const totalConsumptionFormatted = totalConsumption.toFixed(2);
+
+                const row = tbody.insertRow();
+
+                // 處理年度標籤 (RowSpan)
+                if (data.year !== currentYear) {
+                    currentYear = data.year;
+                    const yearRowSpan = yearCounts[currentYear];
+
+                    const yearCell = row.insertCell();
+                    yearCell.textContent = data.year;
+                    yearCell.rowSpan = yearRowSpan; 
+                    yearCell.className = 'year-label'; 
+
+                    if (index > 0) {
+                        row.classList.add('year-separator');
+                    }
+                }
+
+                row.insertCell().textContent = data.fuelType;
+                row.insertCell().textContent = data.coefficient; 
+                
+                const emissionCell = row.insertCell();
+                emissionCell.className = 'carbon-emission';
+                emissionCell.textContent = emissionFormatted;
+
+                months.forEach(month => {
+                    const monthCell = row.insertCell();
+                    // 月份油耗調整為小數點後 2 位
+                    monthCell.textContent = (data.monthlyConsumption[month] || 0).toFixed(2);
+                });
+
+                const totalCell = row.insertCell();
+                totalCell.className = 'total-row';
+                totalCell.textContent = totalConsumptionFormatted;
+            });
+            
+            return { annualTotals, monthlyTotals }; // 回傳兩個結果
+        }
+
+        // 函數：繪製圖表一 (年度總油耗分組圖) - 已修改為獨立長條圖
+        function drawAnnualConsumptionChart(annualTotals) {
+            const ctx = document.getElementById('annualConsumptionChart');
+            
+            if (!ctx) return; 
+
+            const years = Object.keys(annualTotals).sort();
+            
+            const gasData = years.map(year => annualTotals[year].gas);
+            const dieselData = years.map(year => annualTotals[year].diesel);
+
+            new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: years.map(y => `${y}年`),
+                    datasets: [
+                        {
+                            label: '汽油總量 (L)',
+                            data: gasData,
+                            backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '柴油總量 (L)',
+                            data: dieselData,
+                            backgroundColor: 'rgba(39, 174, 96, 0.8)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    // *** 移除堆疊設定，實現獨立分組長條圖 ***
+                    scales: {
+                        x: { title: { display: true, text: '年度' } },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: '油料總量 (L)' }
+                        }
+                    },
+                    plugins: {
+                        title: { display: true, text: '總油耗量獨立比較' }
+                    }
+                }
+            });
+        }
+        
+        // 函數：繪製圖表二 (總碳排放量年度趨勢) - 分組獨立長條圖
+        function drawAnnualCarbonChart(annualTotals) {
+            const ctx = document.getElementById('annualCarbonChart');
+            
+            if (!ctx) return; 
+
+            const years = Object.keys(annualTotals).sort();
+            
+            // 提取按燃料區分的碳排放數據
+            const gasCarbonData = years.map(year => annualTotals[year].gasCarbon);
+            const dieselCarbonData = years.map(year => annualTotals[year].dieselCarbon);
+
+            new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: years.map(y => `${y}年`),
+                    datasets: [{
+                        label: '汽油碳排放量 (kg CO₂)',
+                        data: gasCarbonData,
+                        backgroundColor: 'rgba(230, 126, 34, 0.8)', // 橘色 (汽油)
+                        borderWidth: 1
+                    },
+                    {
+                        label: '柴油碳排放量 (kg CO₂)',
+                        data: dieselCarbonData,
+                        backgroundColor: 'rgba(46, 204, 113, 0.8)', // 綠色 (柴油)
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    // *** 移除堆疊設定，實現獨立分組長條圖 ***
+                    scales: {
+                        x: { title: { display: true, text: '年度' } },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '總碳排放量 (kg CO₂)' }
+                        }
+                    },
+                    plugins: {
+                        title: { display: true, text: '總碳排放量年度趨勢 (按燃料獨立區分)' }
+                    }
+                }
+            });
+        }
+        
+        // 函數：繪製圖表三 (歷年每月總油耗趨勢)
+        function drawMonthlyConsumptionTrendChart(monthlyTotals) {
+            const ctx = document.getElementById('monthlyConsumptionTrendChart');
+            
+            if (!ctx) return; 
+
+            const years = Object.keys(monthlyTotals).sort();
+            const labels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            const colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']; 
+
+            const datasets = years.map((year, index) => {
+                const monthKeys = Object.keys(monthlyTotals[year]).sort();
+                const data = monthKeys.map(key => monthlyTotals[year][key]);
+                
+                return {
+                    label: `${year}年度 總油耗 (L)`,
+                    data: data,
+                    borderColor: colors[index % colors.length], 
+                    backgroundColor: colors[index % colors.length] + '40', 
+                    fill: false,
+                    tension: 0.1 
+                };
+            });
+
+            new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: { title: { display: true, text: '月份' } },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: '月總油耗 (L)' }
+                        }
+                    },
+                    plugins: {
+                        title: { display: true, text: '歷年每月總油耗趨勢比較' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2) + ' L';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        // --- 初始化 ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // 步驟 1: 渲染表格並獲取年度總計和月度總計數據
+            const { annualTotals, monthlyTotals } = processAndRenderTable(fuelData);
+            
+            // 步驟 2: 繪製圖表
+            setTimeout(() => {
+                drawAnnualConsumptionChart(annualTotals); // 繪製按燃料獨立區分的油耗圖表
+                drawAnnualCarbonChart(annualTotals); 
+                drawMonthlyConsumptionTrendChart(monthlyTotals); 
+            }, 100); 
+        });
+    </script>
+</body>
+</html>
